@@ -1,0 +1,146 @@
+body {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    background:
+        radial-gradient(circle at top right, rgba(247, 201, 72, 0.18), transparent 24%),
+        linear-gradient(135deg, #f7f3ea 0%, #e5eef8 48%, #dbe8dd 100%);
+    text-align: center;
+    color: #12233a;
+}
+
+h1 {
+    margin: 0;
+    padding: 28px 20px 8px;
+    font-size: 42px;
+}
+
+.gallery-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    padding: 24px;
+}
+
+.card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow: 0 20px 45px rgba(31, 41, 55, 0.12);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 24px 54px rgba(31, 41, 55, 0.16);
+}
+
+.image-button {
+    display: block;
+    width: 100%;
+    padding: 18px 18px 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.card img {
+    width: 100%;
+    height: 240px;
+    object-fit: contain;
+    background: #f8fafc;
+    border-radius: 20px;
+}
+
+.card-content {
+    padding: 18px 20px 22px;
+}
+
+.card-content h3 {
+    margin: 0 0 10px;
+    font-size: 32px;
+}
+
+.card-content p {
+    margin: 0 0 10px;
+    font-size: 17px;
+    color: #475569;
+}
+
+.card-content small {
+    color: #64748b;
+    font-size: 15px;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    padding: 40px 20px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 20px 45px rgba(31, 41, 55, 0.12);
+}
+
+.gallery-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(9, 18, 33, 0.72);
+    z-index: 1000;
+}
+
+.gallery-modal.is-open {
+    display: flex;
+}
+
+.gallery-modal-box {
+    position: relative;
+    max-width: min(90vw, 1100px);
+    max-height: 90vh;
+    padding: 18px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+}
+
+.gallery-modal-box img {
+    max-width: 100%;
+    max-height: 74vh;
+    object-fit: contain;
+    border-radius: 20px;
+}
+
+.gallery-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: 50%;
+    background: #12233a;
+    color: #fff8ed;
+    font-size: 26px;
+    cursor: pointer;
+}
+
+#galleryModalTitle {
+    margin: 14px 0 4px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+@media (max-width: 700px) {
+    h1 {
+        font-size: 34px;
+    }
+
+    .gallery-container {
+        padding: 16px;
+    }
+
+    .card-content h3 {
+        font-size: 26px;
+    }
+}

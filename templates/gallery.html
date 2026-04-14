@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Campus Gallery</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='gallery.css') }}">
+</head>
+<body>
+
+<h1>📸 Campus Gallery</h1>
+
+<div class="gallery-container">
+
+    {% for img in images %}
+    <div class="card">
+        <button
+            type="button"
+            class="image-button"
+            onclick="openGalleryModal('{{ url_for('static', filename='uploads/' + img.image) }}', '{{ img.title|e }}')"
+        >
+            <img src="{{ url_for('static', filename='uploads/' + img.image) }}" alt="{{ img.title }}">
+        </button>
+
+        <div class="card-content">
+            <h3>{{ img.title }}</h3>
+            <p>{{ img.description }}</p>
+            <small>📅 {{ img.event_date }}</small>
+        </div>
+    </div>
+    {% else %}
+    <p class="empty-state">No gallery images available yet.</p>
+    {% endfor %}
+
+</div>
+
+<div class="gallery-modal" id="galleryModal" onclick="closeGalleryModal(event)">
+    <div class="gallery-modal-box">
+        <button type="button" class="gallery-modal-close" onclick="closeGalleryModal()">&times;</button>
+        <img id="galleryModalImg" src="" alt="">
+        <p id="galleryModalTitle"></p>
+    </div>
+</div>
+
+<script>
+function openGalleryModal(src, title) {
+    const modal = document.getElementById("galleryModal");
+    document.getElementById("galleryModalImg").src = src;
+    document.getElementById("galleryModalImg").alt = title;
+    document.getElementById("galleryModalTitle").textContent = title;
+    modal.classList.add("is-open");
+}
+
+function closeGalleryModal(event) {
+    const modal = document.getElementById("galleryModal");
+    if (!event || event.target === modal) {
+        modal.classList.remove("is-open");
+    }
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        document.getElementById("galleryModal").classList.remove("is-open");
+    }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify OTP</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-copy">
+      <p class="auth-kicker">OTP Verification</p>
+      <h1>Enter Your Code</h1>
+      <p class="auth-text">We sent a one-time password to your email. Enter it below to continue.</p>
+    </div>
+
+    <form method="POST" class="auth-form">
+      <input type="text" name="otp" placeholder="Enter OTP" required>
+      <button type="submit">Verify</button>
+    </form>
+
+    <br>
+
+    <!-- 🔥 RESEND BUTTON -->
+    <button onclick="resendOTP()" class="secondary-btn">Resend OTP</button>
+
+    <p id="msg" class="auth-message"></p>
+
+  </div>
+</div>
+
+<script>
+function resendOTP() {
+  fetch("/resend_otp")
+    .then(res => res.text())
+    .then(data => {
+      document.getElementById("msg").innerText = data;
+    });
+}
+</script>
+
+</body>
+</html>

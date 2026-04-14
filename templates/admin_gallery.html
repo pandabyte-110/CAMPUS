@@ -1,0 +1,145 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body>
+
+<div class="admin-topbar">
+    <div>
+        <p class="panel-label">Control Center</p>
+        <h1>Admin Panel</h1>
+    </div>
+    <div class="top-actions">
+        <a href="/gallery" class="top-link">Public Gallery</a>
+        <a href="/chat" class="top-link">Chat</a>
+        <a href="/logout" class="top-link">Logout</a>
+    </div>
+</div>
+
+<h1>📸 Admin Gallery Panel</h1>
+
+<!-- 🔷 Upload Form -->
+<div class="upload-box panel panel-upload">
+    <div class="panel-label">Gallery Upload</div>
+    <form method="POST" action="{{ url_for('admin_gallery') }}" enctype="multipart/form-data">
+        <input type="file" name="image" id="imageInput" required>
+
+        <input type="text" name="title" placeholder="Event Title" required>
+        <input type="date" name="event_date" required>
+
+
+        <textarea name="description" placeholder="Description"></textarea>
+
+        <button type="submit">Upload</button>
+    </form>
+
+    <!-- Preview -->
+    <img id="preview" src="" style="display:none;">
+</div>
+
+<section class="users-section panel panel-users notice-admin-panel">
+    <div class="panel-label">Notice Publisher</div>
+    <h2>Post a Notice</h2>
+
+    <form method="POST" action="{{ url_for('add_notice') }}" class="notice-form" enctype="multipart/form-data">
+        <input type="text" name="title" placeholder="Notice title" required>
+        <input type="text" name="category" placeholder="Category e.g. Exam, Event, Update">
+        <textarea name="message" placeholder="Write the notice message here..." required></textarea>
+        <label for="noticePdfInput" class="dropzone" id="noticeDropzone">
+            <span class="dropzone-title">Drop original notice PDF here</span>
+            <span class="dropzone-subtitle">or click to choose a PDF file</span>
+            <span class="dropzone-file" id="noticeFileName">No file selected</span>
+        </label>
+        <input type="file" name="notice_pdf" id="noticePdfInput" accept="application/pdf" class="hidden-file-input">
+        <button type="submit">Publish Notice</button>
+    </form>
+
+    <div class="notice-list">
+        {% for notice in notices %}
+        <article class="notice-card">
+            <div class="notice-card-meta">
+                <span>{{ notice.category }}</span>
+                <span>{{ notice.created_at.strftime("%d %b %Y") }}</span>
+            </div>
+            <h3>{{ notice.title }}</h3>
+            <p>{{ notice.message }}</p>
+            {% if notice.pdf_file %}
+            <a href="{{ url_for('static', filename='notices/' + notice.pdf_file) }}" class="notice-link" target="_blank">View original PDF</a>
+            {% endif %}
+            <a href="{{ url_for('delete_notice', notice_id=notice.id) }}" class="delete-btn">Delete Notice</a>
+        </article>
+        {% else %}
+        <p class="empty-state">No notices published yet.</p>
+        {% endfor %}
+    </div>
+</section>
+
+<hr>
+
+<!-- 🔷 Image List -->
+<div class="gallery panel panel-gallery">
+    {% for img in images %}
+    <div class="card">
+        <img src="{{ url_for('static', filename='uploads/' + img.image) }}">
+
+        <h3>{{ img.title }}</h3>
+        <p>{{ img.description }}</p>
+
+        <a href="/admin/delete/{{ img.id }}" class="delete-btn">Delete</a>
+    </div>
+    {% endfor %}
+</div>
+
+<hr>
+
+<section class="users-section panel panel-users">
+    <h2>Registered Users</h2>
+
+    <div class="users-table-wrap">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.role }}</td>
+                    <td>
+                        <a
+                            href="{{ url_for('delete_user', user_id=user.id) }}"
+                            class="delete-btn"
+                            onclick="return confirm('Delete this user?');"
+                        >
+                            Delete
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">No users found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
+
+</body>
+</html>
+

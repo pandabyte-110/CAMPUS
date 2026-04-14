@@ -1,0 +1,59 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CAMPUS</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<!-- 🔷 NAVBAR -->
+<div class="navbar">
+    <h2 class="logo">CAMPUS</h2>
+
+    <div class="nav-actions">
+        {% if session.get("user") %}
+        <span class="nav-user">Welcome, {{ session.get("user") }}</span>
+        {% endif %}
+        {% if session.get("role") == "student" %}
+        <a href="/student_dashboard" class="nav-btn">Dashboard</a>
+        {% endif %}
+        <a href="/gallery" class="nav-btn">📸 Gallery</a>
+        <button onclick="clearChat()" class="nav-btn">🧹 Clear</button>
+        <button onclick="toggleDark()" class="nav-btn">🌙</button>
+        {% if session.get("user") %}
+        <a href="/logout" class="nav-btn">Logout</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 🔷 CHAT CONTAINER -->
+<div class="chat-container">
+
+    <!-- Messages Area -->
+    <div class="messages" id="messages"></div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+        <input id="msg" placeholder="Ask something...">
+        <button onclick="send()">Send</button>
+    </div>
+
+</div>
+
+<!-- 🔷 IMAGE MODAL (for gallery preview later) -->
+<div id="imageModal" class="modal">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img class="modal-content" id="modalImg">
+</div>
+
+<!-- 🔷 JS -->
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>

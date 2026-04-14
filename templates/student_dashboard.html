@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Dashboard - CAMPUS</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='student_dashboard.css') }}">
+</head>
+<body>
+
+    <div class="dashboard-shell">
+    <!-- Navbar -->
+    <div class="navbar">
+        <div class="brand-block">
+            <button class="menu-toggle" id="menuToggle" type="button">Menu</button>
+            <h2>CAMPUS</h2>
+        </div>
+        <div class="top-actions">
+            <span class="welcome-pill">Welcome, {{ student.name }}</span>
+            <a href="/chat" class="top-link">Chat</a>
+            <a href="/logout" class="top-link">Logout</a>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <a href="/student_dashboard" class="active">Dashboard</a>
+        <a href="/chat">Chat</a>
+        <a href="/gallery">Gallery</a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+        <div class="dashboard-grid">
+            <section class="panel panel-hero">
+                <div class="panel-label">Student Overview</div>
+                <div class="hero-inline">
+                    <div>
+                        <h1>Dashboard</h1>
+                        <p class="hero-copy">Track your learning, jump back into the chatbot, and keep an eye on your current course details.</p>
+                    </div>
+                    <div class="status-chip">Live</div>
+                </div>
+                <div class="mini-track">
+                    <span class="track-node track-active"></span>
+                    <span class="track-node"></span>
+                    <span class="track-node"></span>
+                    <span class="track-node"></span>
+                </div>
+            </section>
+
+            <section class="cards panel panel-stats">
+                <div class="card stat-card">
+                    <span class="stat-label">Courses</span>
+                    <strong class="stat-value">{{ course_count }}</strong>
+                    <span class="stat-meta">Active learning blocks</span>
+                </div>
+                <div class="card stat-card accent-card">
+                    <span class="stat-label">Fees</span>
+                    <strong class="stat-value">{{ fees_status }}</strong>
+                    <span class="stat-meta">Current payment state</span>
+                </div>
+                <div class="card stat-card lilac-card">
+                    <span class="stat-label">Notices</span>
+                    <strong class="stat-value">{{ notice_count }}</strong>
+                    <span class="stat-meta">Updates waiting for you</span>
+                </div>
+            </section>
+
+            <section class="panel panel-actions">
+                <div class="panel-label">Quick Access</div>
+                <h2>Next Moves</h2>
+                <div class="action-stack">
+                    <a href="/chat" class="action-pill">Open Chat Assistant</a>
+                    <a href="/gallery" class="action-pill action-secondary">Visit Gallery</a>
+                    <button type="button" class="action-pill action-ghost" id="focusCourses">Jump to Courses</button>
+                </div>
+            </section>
+
+            <section class="panel panel-roadmap">
+                <div class="panel-label">Digital Notice Board</div>
+                <h2>Latest Notices</h2>
+                <div class="notice-board">
+                    {% for notice in notices %}
+                    <article class="notice-item">
+                        <div class="notice-meta">
+                            <span class="notice-category">{{ notice.category }}</span>
+                            <span class="notice-date">{{ notice.created_at.strftime("%d %b %Y") }}</span>
+                        </div>
+                        <h3>{{ notice.title }}</h3>
+                        <p>{{ notice.message }}</p>
+                        {% if notice.pdf_file %}
+                        <a href="{{ url_for('static', filename='notices/' + notice.pdf_file) }}" class="notice-link" target="_blank">Open original notice PDF</a>
+                        {% endif %}
+                    </article>
+                    {% else %}
+                    <div class="notice-empty">
+                        <strong>No notices posted yet.</strong>
+                        <p>When admin uploads campus updates, they will appear here.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="panel panel-courses" id="coursesPanel">
+                <div class="panel-head">
+                    <div>
+                        <div class="panel-label">Course Records</div>
+                        <h2>My Courses</h2>
+                        <p class="panel-copy">Search through the available course records below.</p>
+                    </div>
+                    <input type="text" id="courseSearch" class="search-input" placeholder="Search courses...">
+                </div>
+
+                <div class="table-wrap">
+                    <table id="coursesTable">
+                        <tr>
+                            <th>Name</th>
+                            <th>HOD</th>
+                            <th>Fees</th>
+                            <th>Seats</th>
+                        </tr>
+                        {% for course in courses %}
+                        <tr>
+                           <td>{{ course.course_name }}</td>
+                           <td>{{ course.hod_name }}</td>
+                           <td>{{ course.fees }}</td>
+                           <td>{{ course.total_seats }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </section>
+        </div>
+
+    </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='student_dashboard.js') }}"></script>
+
+</body>
+</html>
