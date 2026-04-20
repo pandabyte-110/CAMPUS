@@ -439,6 +439,7 @@ button:hover {
 }
 
 input,
+select,
 textarea {
   border: 1px solid #cbd5e1;
   border-radius: 14px;
@@ -448,12 +449,14 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: #22456d;
   box-shadow: 0 0 0 4px rgba(34, 69, 109, 0.12);
 }
 
 .dark input,
+.dark select,
 .dark textarea {
   background: #17263d;
   color: #f8fafc;

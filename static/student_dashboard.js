@@ -1,10 +1,8 @@
 const menuToggle = document.getElementById("menuToggle");
 const sidebar = document.getElementById("sidebar");
-const courseSearch = document.getElementById("courseSearch");
-const courseRows = Array.from(document.querySelectorAll("#coursesTable tr")).slice(1);
 const statCards = document.querySelectorAll(".stat-card");
-const focusCourses = document.getElementById("focusCourses");
-const coursesPanel = document.getElementById("coursesPanel");
+const focusProfile = document.getElementById("focusProfile");
+const profilePanel = document.getElementById("profilePanel");
 
 if (menuToggle && sidebar) {
   menuToggle.addEventListener("click", () => {
@@ -12,21 +10,9 @@ if (menuToggle && sidebar) {
   });
 }
 
-if (courseSearch) {
-  courseSearch.addEventListener("input", (event) => {
-    const query = event.target.value.trim().toLowerCase();
-
-    courseRows.forEach((row) => {
-      const text = row.innerText.toLowerCase();
-      row.classList.toggle("is-hidden", !text.includes(query));
-    });
-  });
-}
-
-if (focusCourses && coursesPanel) {
-  focusCourses.addEventListener("click", () => {
-    coursesPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-    courseSearch?.focus();
+if (focusProfile && profilePanel) {
+  focusProfile.addEventListener("click", () => {
+    profilePanel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
 

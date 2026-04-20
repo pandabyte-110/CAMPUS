@@ -51,14 +51,14 @@
 
             <section class="cards panel panel-stats">
                 <div class="card stat-card">
-                    <span class="stat-label">Courses</span>
+                    <span class="stat-label">Course</span>
                     <strong class="stat-value">{{ course_count }}</strong>
-                    <span class="stat-meta">Active learning blocks</span>
+                    <span class="stat-meta">Active enrolled subject</span>
                 </div>
                 <div class="card stat-card accent-card">
                     <span class="stat-label">Fees</span>
                     <strong class="stat-value">{{ fees_status }}</strong>
-                    <span class="stat-meta">Current payment state</span>
+                    <span class="stat-meta">Selected subject fee</span>
                 </div>
                 <div class="card stat-card lilac-card">
                     <span class="stat-label">Notices</span>
@@ -73,7 +73,7 @@
                 <div class="action-stack">
                     <a href="/chat" class="action-pill">Open Chat Assistant</a>
                     <a href="/gallery" class="action-pill action-secondary">Visit Gallery</a>
-                    <button type="button" class="action-pill action-ghost" id="focusCourses">Jump to Courses</button>
+                    <button type="button" class="action-pill action-ghost" id="focusProfile">Jump to Profile Card</button>
                 </div>
             </section>
 
@@ -102,34 +102,48 @@
                 </div>
             </section>
 
-            <section class="panel panel-courses" id="coursesPanel">
+            <section class="panel panel-profile" id="profilePanel">
                 <div class="panel-head">
                     <div>
-                        <div class="panel-label">Course Records</div>
-                        <h2>My Courses</h2>
-                        <p class="panel-copy">Search through the available course records below.</p>
+                        <div class="panel-label">My Academic Profile</div>
+                        <h2>Registered Details</h2>
+                        <p class="panel-copy">These details are captured at registration and linked to your dashboard.</p>
                     </div>
-                    <input type="text" id="courseSearch" class="search-input" placeholder="Search courses...">
                 </div>
 
+                <div class="profile-grid">
+                    <article class="profile-item">
+                        <span>Subject</span>
+                        <strong>{{ student.subject or "Not selected" }}</strong>
+                    </article>
+                    <article class="profile-item">
+                        <span>Roll Number</span>
+                        <strong>{{ student.roll_no or "Not available" }}</strong>
+                    </article>
+                    <article class="profile-item">
+                        <span>College Year</span>
+                        <strong>{{ student.college_year or "Not available" }}</strong>
+                    </article>
+                </div>
+
+                {% if selected_course %}
                 <div class="table-wrap">
-                    <table id="coursesTable">
+                    <table>
                         <tr>
-                            <th>Name</th>
+                            <th>Subject</th>
                             <th>HOD</th>
                             <th>Fees</th>
                             <th>Seats</th>
                         </tr>
-                        {% for course in courses %}
                         <tr>
-                           <td>{{ course.course_name }}</td>
-                           <td>{{ course.hod_name }}</td>
-                           <td>{{ course.fees }}</td>
-                           <td>{{ course.total_seats }}</td>
+                           <td>{{ selected_course.course_name }}</td>
+                           <td>{{ selected_course.hod_name }}</td>
+                           <td>{{ selected_course.fees }}</td>
+                           <td>{{ selected_course.total_seats }}</td>
                         </tr>
-                        {% endfor %}
                     </table>
                 </div>
+                {% endif %}
             </section>
         </div>
 

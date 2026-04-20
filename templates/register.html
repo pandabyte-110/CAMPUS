@@ -20,6 +20,19 @@
     <form method="POST" class="auth-form">
       <input type="text" name="name" placeholder="Full Name" required>
       <input type="email" name="email" placeholder="Email" required>
+      <input type="text" name="roll_no" placeholder="Roll Number" required>
+      <select name="subject" required>
+        <option value="" selected disabled>Select Subject</option>
+        {% for subject in subjects %}
+        <option value="{{ subject.course_name }}">{{ subject.course_name }}</option>
+        {% endfor %}
+      </select>
+      <select name="college_year" required>
+        <option value="" selected disabled>Select College Year</option>
+        {% for year in valid_years %}
+        <option value="{{ year }}">{{ year }}</option>
+        {% endfor %}
+      </select>
       <input type="password" name="password" placeholder="Password" required>
       <button type="submit">Register</button>
     </form>

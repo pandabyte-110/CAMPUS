@@ -20,12 +20,6 @@ h1 {
     font-size: 38px;
 }
 
-hr {
-    margin: 28px 0;
-    border: none;
-    border-top: 1px solid rgba(18, 35, 58, 0.12);
-}
-
 .upload-box,
 .users-table-wrap {
     background: rgba(255, 255, 255, 0.88);
@@ -35,8 +29,8 @@ hr {
 }
 
 .upload-box {
-    max-width: 520px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
 }
 
 .upload-box input,
@@ -91,9 +85,19 @@ hr {
 
 #preview {
     width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    background: #f8fafc;
     margin-top: 16px;
     border-radius: 20px;
     box-shadow: 0 18px 40px rgba(18, 35, 58, 0.18);
+}
+
+.helper-copy {
+    margin: -2px 0 8px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 .gallery {
@@ -115,9 +119,24 @@ hr {
 .card img {
     width: 100%;
     height: 170px;
-    object-fit: cover;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.14);
     border-radius: 18px;
     margin-bottom: 12px;
+}
+
+.thumbnail-button {
+    width: 100%;
+    border: none;
+    border-radius: 18px;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.thumbnail-button img {
+    height: 140px;
+    object-fit: contain;
 }
 
 .card h3 {
@@ -165,26 +184,6 @@ hr {
 
 .users-table .delete-btn {
     margin-top: 0;
-}
-
-@media (max-width: 700px) {
-    body {
-        padding: 16px;
-    }
-
-    h1 {
-        font-size: 30px;
-    }
-
-    .upload-box,
-    .users-table-wrap {
-        padding: 18px;
-        border-radius: 22px;
-    }
-
-    .gallery {
-        grid-template-columns: 1fr;
-    }
 }
 
 body > h1 {
@@ -241,14 +240,16 @@ body > h1 {
 
 .upload-box.panel,
 .gallery.panel,
-.users-section.panel {
+.users-section.panel,
+.gallery-access.panel {
     position: relative;
     overflow: hidden;
 }
 
 .upload-box.panel::before,
 .gallery.panel::before,
-.users-section.panel::before {
+.users-section.panel::before,
+.gallery-access.panel::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -267,6 +268,20 @@ body > h1 {
 .users-section.panel h2 {
     position: relative;
     z-index: 1;
+}
+
+.admin-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    align-items: stretch;
+}
+
+.admin-upload-grid > .panel {
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
 }
 
 .gallery.panel {
@@ -291,7 +306,7 @@ body > h1 {
 }
 
 .notice-admin-panel {
-    margin-top: 22px;
+    margin-top: 0;
 }
 
 .notice-form {
@@ -399,4 +414,158 @@ body > h1 {
     color: #12233a;
     font-weight: 700;
     text-decoration: none;
+}
+
+.faq-admin-panel {
+    margin-top: 22px;
+}
+
+.faq-card h3 {
+    margin: 0 0 10px;
+}
+
+.faq-card p {
+    margin: 0;
+}
+
+.gallery-access.panel {
+    margin-top: 22px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.88);
+    border-radius: 28px;
+    box-shadow: 0 20px 45px rgba(31, 41, 55, 0.12);
+}
+
+.gallery-open-card {
+    width: 100%;
+    min-height: 220px;
+    border: none;
+    border-radius: 28px;
+    padding: 26px;
+    background: linear-gradient(135deg, rgba(18, 35, 58, 0.98), rgba(34, 69, 109, 0.98));
+    color: #fff8ed;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gallery-open-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 36px rgba(18, 35, 58, 0.28);
+}
+
+.gallery-open-card strong {
+    font-size: 34px;
+    line-height: 1.1;
+}
+
+.gallery-count {
+    color: #f7d89a;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.gallery-open-hint {
+    color: #d9e7f6;
+}
+
+.is-hidden {
+    display: none;
+}
+
+.image-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(9, 18, 33, 0.72);
+    z-index: 1200;
+}
+
+.image-modal.is-open {
+    display: flex;
+}
+
+.image-modal-content {
+    position: relative;
+    width: min(960px, 92vw);
+    max-height: 90vh;
+    padding: 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.26);
+}
+
+.image-modal-content img {
+    width: 100%;
+    max-height: 74vh;
+    object-fit: contain;
+    border-radius: 16px;
+    background: #f8fafc;
+}
+
+.image-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 999px;
+    background: #12233a;
+    color: #fff8ed;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#modalImageTitle {
+    margin: 12px 0 2px;
+    text-align: center;
+    color: #12233a;
+    font-weight: 700;
+}
+
+@media (max-width: 900px) {
+    .admin-upload-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    body {
+        padding: 16px;
+    }
+
+    h1 {
+        font-size: 30px;
+    }
+
+    .upload-box,
+    .users-table-wrap,
+    .users-section.panel,
+    .gallery.panel {
+        padding: 18px;
+        border-radius: 22px;
+    }
+
+    .gallery-open-card {
+        min-height: 180px;
+        padding: 20px;
+        border-radius: 22px;
+    }
+
+    .gallery-open-card strong {
+        font-size: 28px;
+    }
+
+    .gallery {
+        grid-template-columns: 1fr;
+    }
 }

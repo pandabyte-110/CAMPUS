@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -21,81 +20,119 @@
     </div>
 </div>
 
-<h1>📸 Admin Gallery Panel</h1>
+<h1>Admin Gallery Panel</h1>
 
-<!-- 🔷 Upload Form -->
-<div class="upload-box panel panel-upload">
-    <div class="panel-label">Gallery Upload</div>
-    <form method="POST" action="{{ url_for('admin_gallery') }}" enctype="multipart/form-data">
-        <input type="file" name="image" id="imageInput" required>
+<section class="admin-upload-grid">
+    <div class="upload-box panel panel-upload">
+        <div class="panel-label">Gallery Upload</div>
+        <h2>Upload to Gallery</h2>
+        <form method="POST" action="{{ url_for('admin_gallery') }}" enctype="multipart/form-data">
+            <input type="file" name="image" id="imageInput" accept="image/*" required>
+            <p class="helper-copy" id="imageResizeInfo">Selected image will be resized automatically before upload for better performance.</p>
 
-        <input type="text" name="title" placeholder="Event Title" required>
-        <input type="date" name="event_date" required>
+            <input type="text" name="title" placeholder="Event Title" required>
+            <input type="date" name="event_date" required>
 
+            <textarea name="description" placeholder="Description"></textarea>
 
-        <textarea name="description" placeholder="Description"></textarea>
+            <button type="submit">Upload</button>
+        </form>
 
-        <button type="submit">Upload</button>
-    </form>
-
-    <!-- Preview -->
-    <img id="preview" src="" style="display:none;">
-</div>
-
-<section class="users-section panel panel-users notice-admin-panel">
-    <div class="panel-label">Notice Publisher</div>
-    <h2>Post a Notice</h2>
-
-    <form method="POST" action="{{ url_for('add_notice') }}" class="notice-form" enctype="multipart/form-data">
-        <input type="text" name="title" placeholder="Notice title" required>
-        <input type="text" name="category" placeholder="Category e.g. Exam, Event, Update">
-        <textarea name="message" placeholder="Write the notice message here..." required></textarea>
-        <label for="noticePdfInput" class="dropzone" id="noticeDropzone">
-            <span class="dropzone-title">Drop original notice PDF here</span>
-            <span class="dropzone-subtitle">or click to choose a PDF file</span>
-            <span class="dropzone-file" id="noticeFileName">No file selected</span>
-        </label>
-        <input type="file" name="notice_pdf" id="noticePdfInput" accept="application/pdf" class="hidden-file-input">
-        <button type="submit">Publish Notice</button>
-    </form>
-
-    <div class="notice-list">
-        {% for notice in notices %}
-        <article class="notice-card">
-            <div class="notice-card-meta">
-                <span>{{ notice.category }}</span>
-                <span>{{ notice.created_at.strftime("%d %b %Y") }}</span>
-            </div>
-            <h3>{{ notice.title }}</h3>
-            <p>{{ notice.message }}</p>
-            {% if notice.pdf_file %}
-            <a href="{{ url_for('static', filename='notices/' + notice.pdf_file) }}" class="notice-link" target="_blank">View original PDF</a>
-            {% endif %}
-            <a href="{{ url_for('delete_notice', notice_id=notice.id) }}" class="delete-btn">Delete Notice</a>
-        </article>
-        {% else %}
-        <p class="empty-state">No notices published yet.</p>
-        {% endfor %}
+        <img id="preview" src="" style="display:none;" alt="Selected image preview">
     </div>
+
+    <section class="users-section panel panel-users notice-admin-panel">
+        <div class="panel-label">Notice Publisher</div>
+        <h2>Post a Notice</h2>
+
+        <form method="POST" action="{{ url_for('add_notice') }}" class="notice-form" enctype="multipart/form-data">
+            <input type="text" name="title" placeholder="Notice title" required>
+            <input type="text" name="category" placeholder="Category e.g. Exam, Event, Update">
+            <textarea name="message" placeholder="Write the notice message here..." required></textarea>
+            <label for="noticePdfInput" class="dropzone" id="noticeDropzone">
+                <span class="dropzone-title">Drop original notice PDF here</span>
+                <span class="dropzone-subtitle">or click to choose a PDF file</span>
+                <span class="dropzone-file" id="noticeFileName">No file selected</span>
+            </label>
+            <input type="file" name="notice_pdf" id="noticePdfInput" accept="application/pdf" class="hidden-file-input">
+            <button type="submit">Publish Notice</button>
+        </form>
+
+        <div class="notice-list">
+            {% for notice in notices %}
+            <article class="notice-card">
+                <div class="notice-card-meta">
+                    <span>{{ notice.category }}</span>
+                    <span>{{ notice.created_at.strftime("%d %b %Y") }}</span>
+                </div>
+                <h3>{{ notice.title }}</h3>
+                <p>{{ notice.message }}</p>
+                {% if notice.pdf_file %}
+                <a href="{{ url_for('static', filename='notices/' + notice.pdf_file) }}" class="notice-link" target="_blank">View original PDF</a>
+                {% endif %}
+                <a href="{{ url_for('delete_notice', notice_id=notice.id) }}" class="delete-btn">Delete Notice</a>
+            </article>
+            {% else %}
+            <p class="empty-state">No notices published yet.</p>
+            {% endfor %}
+        </div>
+    </section>
 </section>
 
-<hr>
+<section class="gallery-access panel panel-gallery-access">
+    <button type="button" class="gallery-open-card" id="toggleGalleryBtn" aria-expanded="false" aria-controls="adminGallery">
+        <span class="panel-label">Gallery Manager</span>
+        <strong>Open Gallery</strong>
+        <span class="gallery-count">{{ images|length }} image{{ '' if images|length == 1 else 's' }} available</span>
+        <span class="gallery-open-hint">Click to view and manage uploaded images</span>
+    </button>
+</section>
 
-<!-- 🔷 Image List -->
-<div class="gallery panel panel-gallery">
+<div class="gallery panel panel-gallery is-hidden" id="adminGallery">
     {% for img in images %}
     <div class="card">
-        <img src="{{ url_for('static', filename='uploads/' + img.image) }}">
+        <button
+            type="button"
+            class="thumbnail-button"
+            data-full-src="{{ url_for('static', filename='uploads/' + img.image) }}"
+            data-full-title="{{ img.title }}"
+            aria-label="Open full image"
+        >
+            <img src="{{ url_for('static', filename='uploads/' + img.image) }}" alt="{{ img.title }}">
+        </button>
 
         <h3>{{ img.title }}</h3>
         <p>{{ img.description }}</p>
 
         <a href="/admin/delete/{{ img.id }}" class="delete-btn">Delete</a>
     </div>
+    {% else %}
+    <p class="empty-state">No gallery images available yet.</p>
     {% endfor %}
 </div>
 
-<hr>
+<section class="users-section panel panel-users faq-admin-panel">
+    <div class="panel-label">Knowledge Base</div>
+    <h2>FAQ Manager</h2>
+
+    <form method="POST" action="{{ url_for('add_faq') }}" class="notice-form">
+        <input type="text" name="question" placeholder="FAQ Question" required>
+        <textarea name="answer" placeholder="FAQ Answer" required></textarea>
+        <button type="submit">Save FAQ</button>
+    </form>
+
+    <div class="notice-list">
+        {% for faq in faqs %}
+        <article class="notice-card faq-card">
+            <h3>{{ faq.question }}</h3>
+            <p>{{ faq.answer }}</p>
+            <a href="{{ url_for('delete_faq', faq_id=faq.id) }}" class="delete-btn">Delete FAQ</a>
+        </article>
+        {% else %}
+        <p class="empty-state">No FAQs added yet.</p>
+        {% endfor %}
+    </div>
+</section>
 
 <section class="users-section panel panel-users">
     <h2>Registered Users</h2>
@@ -138,8 +175,15 @@
     </div>
 </section>
 
+<div class="image-modal" id="imageModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="image-modal-content">
+        <button type="button" class="image-modal-close" id="closeImageModal" aria-label="Close image preview">&times;</button>
+        <img id="modalImage" src="" alt="">
+        <p id="modalImageTitle"></p>
+    </div>
+</div>
+
 <script src="{{ url_for('static', filename='admin.js') }}"></script>
 
 </body>
 </html>
-
