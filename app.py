@@ -29,6 +29,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+
+class DatabaseConnectionError(Exception):
+    pass
+
 class Gallery(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     image = db.Column(db.String(255))
@@ -59,24 +63,34 @@ with app.app_context():
         db.session.commit()
 # Database Connection
 def get_db_connection():
-    db_host = os.getenv("MYSQL_HOST")
-    db_port = int(os.getenv("MYSQL_PORT", "3306"))
-    db_user = os.getenv("MYSQL_USER")
-    db_password = os.getenv("MYSQL_PASSWORD")
-    db_name = os.getenv("MYSQL_DATABASE")
+    db_host = os.getenv("MYSQLHOST")
+    db_port = int(os.getenv("MYSQLPORT", "3306"))
+    db_user = os.getenv("MYSQLUSER")
+    db_password = os.getenv("MYSQLPASSWORD")
+    db_name = os.getenv("MYSQLDATABASE")
 
     if not all([db_host, db_user, db_password, db_name]):
-        raise RuntimeError(
-            "MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, and MYSQL_DATABASE environment variables are required."
+        raise DatabaseConnectionError(
+            "Database configuration is missing. Set MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, and MYSQLDATABASE."
         )
 
-    return mysql.connector.connect(
-        host=db_host,
-        port=db_port,
-        user=db_user,
-        password=db_password,
-        database=db_name
-    )
+    try:
+        return mysql.connector.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            database=db_name
+        )
+    except mysql.connector.Error as exc:
+        raise DatabaseConnectionError("Unable to connect to the database. Please try again later.") from exc
+
+
+@app.errorhandler(DatabaseConnectionError)
+def handle_database_connection_error(error):
+    if request.path == "/get" or request.path == "/chat":
+        return jsonify({"response": str(error)}), 503
+    return str(error), 503
 
 
 def send_otp_email(to_email, otp):
