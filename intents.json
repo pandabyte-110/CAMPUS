@@ -14,7 +14,17 @@
       "tag": "affirmatives",
       "patterns": ["Hii", "Hello","hello", "hii"],
       "responses": ["Hello,I am CAMPUS,a chatbot created for F.M.Autonomus college.How can i help you?"]
+    },
+    {
+      "tag": "course_seats",
+      "patterns": ["seats available", "how many seats", "available seats", "seats in course", "course seats", "seat availability"],
+      "responses": ["You can ask me about seats available in any course, or just type 'seats' to see all courses."]
+    },
+    {
+      "tag": "course_strength",
+      "patterns": ["course strength", "enrollment", "no of seats", "student strength", "course enrollment", "strength of courses"],
+      "responses": ["I can tell you the strength of all courses or check seats for a specific course. Just type 'strength' to see all courses."]
     }
-    
   ]
 }
+

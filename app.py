@@ -3,23 +3,28 @@ import json
 import random
 import difflib
 import re
+from dataclasses import dataclass
 from flask import Flask , url_for, render_template, request, jsonify ,redirect, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
+import socket
 import random
 import time
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from email.mime.text import MIMEText
 from flask_sqlalchemy import SQLAlchemy
 import os
 from sqlalchemy import inspect, text
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, template_folder="templates", static_folder="static")
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("FLASK_SECRET_KEY environment variable is required.")
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///campus.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI", "sqlite:///campus.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -54,17 +59,38 @@ with app.app_context():
         db.session.commit()
 # Database Connection
 def get_db_connection():
+    db_host = os.getenv("MYSQL_HOST")
+    db_port = int(os.getenv("MYSQL_PORT", "3306"))
+    db_user = os.getenv("MYSQL_USER")
+    db_password = os.getenv("MYSQL_PASSWORD")
+    db_name = os.getenv("MYSQL_DATABASE")
+
+    if not all([db_host, db_user, db_password, db_name]):
+        raise RuntimeError(
+            "MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, and MYSQL_DATABASE environment variables are required."
+        )
+
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="PasswarD",
-        database="campus_db"
+        host=db_host,
+        port=db_port,
+        user=db_user,
+        password=db_password,
+        database=db_name
     )
 
 
 def send_otp_email(to_email, otp):
-    sender_email = "pandadeepankar96@gmail.com"
-    app_password = "fxpq vusf zqcm edtk"
+    sender_email = os.getenv("SMTP_EMAIL")
+    app_password = os.getenv("SMTP_APP_PASSWORD")
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+    if not sender_email or not app_password:
+        return False, "Email service is not configured."
+
+    # Common typo guard: smtp.gmail.con -> smtp.gmail.com
+    if smtp_host.endswith(".con"):
+        smtp_host = f"{smtp_host[:-4]}.com"
 
 
 
@@ -102,11 +128,18 @@ def send_otp_email(to_email, otp):
     msg["From"] = sender_email
     msg["To"] = to_email
 
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(sender_email, app_password)
-    server.send_message(msg)
-    server.quit()
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+            server.starttls()
+            server.login(sender_email, app_password)
+            server.send_message(msg)
+        return True, None
+    except (socket.gaierror, TimeoutError, OSError) as exc:
+        print(f"OTP email connection error: {exc}")
+        return False, "Unable to connect to the email server. Please try again."
+    except smtplib.SMTPException as exc:
+        print(f"OTP email SMTP error: {exc}")
+        return False, "Email authentication/delivery failed. Please try again."
 
 def get_admin_users():
     conn = get_db_connection()
@@ -125,6 +158,51 @@ def get_notices(limit=None):
 
 def get_faqs():
     return FAQ.query.order_by(FAQ.created_at.desc()).all()
+
+def search_faqs(user_query):
+    """Search FAQs using similarity matching and return matching answer if found."""
+    faqs = FAQ.query.all()
+    if not faqs:
+        return None
+    
+    user_query_lower = user_query.lower().strip()
+    best_match = None
+    best_ratio = 0
+    threshold = 0.4  # 40% similarity threshold
+    
+    for faq in faqs:
+        faq_question_lower = faq.question.lower()
+        ratio = difflib.SequenceMatcher(None, user_query_lower, faq_question_lower).ratio()
+        
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = faq
+    
+    if best_match and best_ratio >= threshold:
+        return best_match.answer
+    
+    return None
+
+def get_latest_notice():
+    """Get the most recent notice posted by admin."""
+    notice = Notice.query.order_by(Notice.created_at.desc()).first()
+    return notice
+
+def is_notice_query(user_input):
+    """Check if user is asking about notices."""
+    lowered = user_input.lower()
+    notice_keywords = {"notice", "notices", "new notice", "latest notice", "recent notice", "announcement", "announcements"}
+    return any(keyword in lowered for keyword in notice_keywords)
+
+def format_notice_response(notice):
+    """Format notice for chatbot display."""
+    if not notice:
+        return "No notices have been posted yet."
+    
+    response = f"📌 **{notice.title}**\n\n{notice.message}"
+    if notice.category:
+        response += f"\n\n📂 Category: {notice.category}"
+    return response
 
 VALID_COLLEGE_YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"]
 
@@ -151,7 +229,8 @@ def ensure_student_profile_columns():
     cursor.close()
     conn.close()
 # Load intents file
-with open("intents.json") as file:
+intents_path = os.path.join(BASE_DIR, "intents.json")
+with open(intents_path, encoding="utf-8") as file:
     intents = json.load(file)
 
 @app.route("/")
@@ -168,21 +247,90 @@ def get_response(user_message):
 
     return "Sorry, I don't understand."
 
+INTENTS = {
+    "price_query": ["price", "cost", "rate", "how much"],
+    "availability_query": ["available", "availability", "is there"],
+    "menu_query": ["menu", "items", "food"],
+}
+
+# Navigation keywords and synonym mapping for campus places.
+NAVIGATION_KEYWORDS = [
+    "where is",
+    "how to go to",
+    "how do i reach",
+    "how can i reach",
+    "how to reach",
+    "directions to",
+    "route to",
+    "i am at",
+    "im at",
+    "i m at",
+]
+
+LOCATION_SYNONYMS = {
+    "principal room": "Principal Office",
+    "fees office": "Account Section",
+    "exam cell": "Exam Section",
+    "lab": "Computer Lab",
+    "hostel boys": "Boys Hostel",
+    "hostel girls": "Girls Hostel",
+}
+
+COLLEGE_INFO_MAP = {
+    "principal": "principal_name",
+    "principal name": "principal_name",
+    "established": "established_year",
+    "year of establishment": "established_year",
+    "history": "college_history",
+    "anthem": "college_anthem",
+    "motto": "college_motto",
+    "vision": "college_vision",
+    "mission": "college_mission",
+    "address": "college_address",
+}
+
+COLLEGE_INFO_TRIGGERS = [
+    "principal",
+    "established",
+    "establishment",
+    "history",
+    "anthem",
+    "motto",
+    "vision",
+    "mission",
+    "address",
+    "college info",
+    "college information",
+]
+
+
+def _tokenize_words(text):
+    return re.findall(r"\b[a-z0-9]+\b", text.lower())
+
+
+def _contains_keyword(text, tokens, keyword):
+    if " " in keyword:
+        return keyword in text
+    return keyword in tokens
+
+
 def detect_intent(user_message):
     text = user_message.lower()
+    tokens = _tokenize_words(text)
 
-    if any(word in text for word in ["hello", "hi", "hey", "good morning", "good evening"]):
+    for intent, keywords in INTENTS.items():
+        for word in keywords:
+            if _contains_keyword(text, tokens, word):
+                return intent
+
+    if any(_contains_keyword(text, tokens, word) for word in ["hello", "hi", "hey", "good morning", "good evening"]):
         return "greeting"
-    if any(word in text for word in ["fee", "fees", "tuition"]):
+    if any(_contains_keyword(text, tokens, word) for word in ["fee", "fees", "tuition"]):
         return "get_fee"
-    if "hod" in text or "head of department" in text:
+    if _contains_keyword(text, tokens, "hod") or _contains_keyword(text, tokens, "head of department"):
         return "get_hod"
-    if any(word in text for word in ["available", "availability", "in stock"]):
-        return "availability"
-    if any(word in text for word in ["category", "in category", "items in", "show", "list", "menu in"]):
+    if any(_contains_keyword(text, tokens, word) for word in ["category", "in category", "items in", "show", "list", "menu in"]):
         return "category_query"
-    if any(word in text for word in ["price", "cost", "rate", "how much"]):
-        return "price_query"
     return "unknown"
 
 def ensure_menu_items_table(cursor):
@@ -201,9 +349,441 @@ def ensure_menu_items_table(cursor):
 def _normalize_text(value):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", value.lower())).strip()
 
+def _normalize_navigation_text(user_text):
+    # Normalize user text and apply location synonyms before extracting places.
+    normalized = _normalize_text(user_text)
+    for alias, canonical in LOCATION_SYNONYMS.items():
+        alias_norm = _normalize_text(alias)
+        canonical_norm = _normalize_text(canonical)
+        normalized = re.sub(rf"\b{re.escape(alias_norm)}\b", canonical_norm, normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+def _normalize_college_info_text(user_text):
+    return _normalize_text(user_text)
+
+def is_college_info_query(user_text):
+    text = _normalize_college_info_text(user_text)
+    return any(trigger in text for trigger in COLLEGE_INFO_TRIGGERS)
+
+def detect_college_info_key(user_text):
+    # Match longest phrases first so "principal name" wins over "principal".
+    text = _normalize_college_info_text(user_text)
+    sorted_keys = sorted(COLLEGE_INFO_MAP.keys(), key=len, reverse=True)
+    for phrase in sorted_keys:
+        if phrase in text:
+            return COLLEGE_INFO_MAP[phrase]
+    return None
+
+def get_college_info(key_name, cursor):
+    # Fetch exactly one college info value for the mapped key.
+    try:
+        cursor.execute(
+            """
+            SELECT value
+            FROM college_info
+            WHERE key_name = %s
+            LIMIT 1
+            """,
+            (key_name,)
+        )
+        return cursor.fetchone()
+    except mysql.connector.Error:
+        return None
+
+def handle_college_info_query(user_input, cursor):
+    if not is_college_info_query(user_input):
+        return None
+
+    key_name = detect_college_info_key(user_input)
+    if not key_name:
+        return "Sorry, I couldn't find that information. Please try asking differently."
+
+    info_row = get_college_info(key_name, cursor)
+    if not info_row or not info_row.get("value"):
+        return "Sorry, I couldn't find that information. Please try asking differently."
+
+    return str(info_row["value"]).strip()
+
+def is_navigation_query(user_text):
+    text = _normalize_navigation_text(user_text)
+    return any(keyword in text for keyword in NAVIGATION_KEYWORDS) or bool(
+        re.search(r"\bfrom\s+[a-z0-9\s]+?\s+to\s+[a-z0-9\s]+\b", text)
+    )
+
+def _clean_place_candidate(value):
+    value = re.sub(r"\b(please|kindly|me|the|a|an)\b", " ", value or "")
+    value = re.sub(r"\s+", " ", value).strip(" ,.?")
+    return value
+
+def extract_navigation_places(user_text):
+    text = _normalize_navigation_text(user_text)
+    start_place = None
+    destination = None
+
+    # Pattern: "from <start> to <end>"
+    from_to_match = re.search(r"\bfrom\s+([a-z0-9\s]+?)\s+to\s+([a-z0-9\s]+)\b", text)
+    if from_to_match:
+        start_place = _clean_place_candidate(from_to_match.group(1))
+        destination = _clean_place_candidate(from_to_match.group(2))
+        return start_place, destination
+
+    # Pattern: "i am at <start> ... how to reach/go to <end>"
+    start_match = re.search(r"\b(?:i am at|im at|i m at)\s+([a-z0-9\s]+?)(?=\s+(?:how|directions|where|can)\b|$)", text)
+    if start_match:
+        start_place = _clean_place_candidate(start_match.group(1))
+
+    destination_patterns = [
+        r"\bwhere is\s+([a-z0-9\s]+)$",
+        r"\bdirections to\s+([a-z0-9\s]+)$",
+        r"\bhow to go to\s+([a-z0-9\s]+)$",
+        r"\bhow to reach\s+([a-z0-9\s]+)$",
+        r"\bhow do i reach\s+([a-z0-9\s]+)$",
+        r"\bhow can i reach\s+([a-z0-9\s]+)$",
+        r"\bgo to\s+([a-z0-9\s]+)$",
+        r"\breach\s+([a-z0-9\s]+)$",
+        r"\bto\s+([a-z0-9\s]+)$",
+    ]
+    for pattern in destination_patterns:
+        matched = re.search(pattern, text)
+        if matched:
+            destination = _clean_place_candidate(matched.group(1))
+            break
+
+    return start_place, destination
+
+def get_location(place, cursor):
+    # Always fetch one matching location record; never return raw full table output.
+    try:
+        cursor.execute(
+            """
+            SELECT name, category, description, landmark, directions, image_url
+            FROM locations
+            WHERE LOWER(name) LIKE LOWER(%s)
+            ORDER BY name ASC
+            LIMIT 1
+            """,
+            (f"%{place}%",)
+        )
+        return cursor.fetchone()
+    except mysql.connector.Error:
+        return None
+
+def get_route(start, end, cursor):
+    # Fetch route instructions between start and destination.
+    try:
+        cursor.execute(
+            """
+            SELECT start_location, end_location, steps
+            FROM routes
+            WHERE LOWER(start_location) LIKE LOWER(%s)
+              AND LOWER(end_location) LIKE LOWER(%s)
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (f"%{start}%", f"%{end}%")
+        )
+        return cursor.fetchone()
+    except mysql.connector.Error:
+        return None
+
+def _guess_location_from_text(user_text, cursor, exclude_name=None):
+    # Fallback guess using known location names from DB when direct extraction fails.
+    try:
+        cursor.execute(
+            """
+            SELECT name
+            FROM locations
+            WHERE name IS NOT NULL AND name <> ''
+            ORDER BY CHAR_LENGTH(name) DESC
+            """
+        )
+        rows = cursor.fetchall()
+    except mysql.connector.Error:
+        return None
+
+    normalized_text = _normalize_navigation_text(user_text)
+    exclude_norm = _normalize_text(exclude_name or "")
+
+    for row in rows:
+        db_name = (row.get("name") or "").strip()
+        if not db_name:
+            continue
+        db_name_norm = _normalize_text(db_name)
+        if exclude_norm and db_name_norm == exclude_norm:
+            continue
+        if db_name_norm and db_name_norm in normalized_text:
+            return db_name
+    return None
+
+def _append_location_image(response_text, location_row):
+    image_url = (location_row or {}).get("image_url")
+    if image_url:
+        return f"{response_text}\nYou can also view it here: {image_url}"
+    return response_text
+
+def format_location_response(location_row):
+    name = (location_row.get("name") or "This location").strip()
+    description = (location_row.get("description") or "").strip()
+    landmark = (location_row.get("landmark") or "").strip()
+    directions = (location_row.get("directions") or "").strip()
+
+    if landmark:
+        first_line = f"{name} is located near {landmark}."
+    elif description:
+        first_line = f"{name}: {description}"
+    else:
+        first_line = f"{name} location details:"
+
+    response_parts = [first_line]
+    if description and landmark:
+        response_parts.append(description)
+    if directions:
+        response_parts.append(f"Directions: {directions}")
+
+    return _append_location_image("\n".join(response_parts), location_row)
+
+def handle_navigation_query(user_input, cursor):
+    if not is_navigation_query(user_input):
+        return None
+
+    start_place, destination = extract_navigation_places(user_input)
+    if not destination:
+        destination = _guess_location_from_text(user_input, cursor)
+
+    if not destination:
+        return "Please tell me the destination place."
+
+    destination_row = get_location(destination, cursor)
+    if not destination_row:
+        return "Sorry, I couldn't find that location. Please try another place."
+
+    if start_place:
+        start_row = get_location(start_place, cursor)
+        if not start_row:
+            guessed_start = _guess_location_from_text(
+                user_input,
+                cursor,
+                exclude_name=destination_row.get("name")
+            )
+            if guessed_start:
+                start_row = get_location(guessed_start, cursor)
+
+        start_name = start_row["name"] if start_row else start_place.title()
+        route_row = (
+            get_route(start_name, destination_row["name"], cursor)
+            or get_route(start_place, destination_row["name"], cursor)
+            or get_route(start_name, destination, cursor)
+        )
+
+        if route_row and route_row.get("steps"):
+            route_text = (
+                f"From {start_name} to {destination_row['name']}:\n"
+                f"{route_row['steps']}"
+            )
+            return _append_location_image(route_text, destination_row)
+
+        fallback = (
+            f"Sorry, I couldn't find a route from {start_name} to {destination_row['name']}.\n"
+            f"{format_location_response(destination_row)}"
+        )
+        return fallback
+
+    return format_location_response(destination_row)
+
 def _fetch_menu_items(cursor):
     cursor.execute("SELECT id, name, category, price, availability FROM menu_items")
     return cursor.fetchall()
+
+def extract_item_name(user_input):
+    cleaned = _normalize_text(user_input)
+    for phrase in [
+        "price of", "cost of", "rate of", "how much is", "how much",
+        "is there", "is", "available", "availability", "menu", "items", "food"
+    ]:
+        cleaned = cleaned.replace(phrase, " ")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+def is_single_word(user_input):
+    return len(user_input.strip().split()) == 1
+
+
+def _is_item_available(value):
+    return str(value or "").strip().lower() in {"yes", "y", "1", "true", "available", "in stock"}
+
+
+def get_full_menu(cursor):
+    cursor.execute(
+        """
+        SELECT name, category, price, availability
+        FROM menu_items
+        ORDER BY category ASC, name ASC
+        """
+    )
+    items = cursor.fetchall()
+
+    if not items:
+        return "Menu is not available right now."
+
+    response_lines = ["Canteen Menu:"]
+    current_category = None
+
+    for item in items:
+        category = item.get("category") or "Uncategorized"
+        if category != current_category:
+            current_category = category
+            response_lines.append(f"\n{current_category}:")
+
+        availability = "Yes" if _is_item_available(item.get("availability")) else "No"
+        response_lines.append(
+            f"- {item.get('name')} - {format_currency(item.get('price'))} | Available: {availability}"
+        )
+
+    return "\n".join(response_lines)
+
+
+def search_menu_items(keyword, cursor):
+    cursor.execute(
+        """
+        SELECT name, category, price, availability
+        FROM menu_items
+        WHERE LOWER(name) LIKE LOWER(%s)
+        ORDER BY category ASC, name ASC
+        """,
+        (f"%{keyword}%",)
+    )
+    items = cursor.fetchall()
+
+    if not items:
+        return None
+
+    response_lines = [f"Items related to '{keyword}':"]
+    for item in items:
+        availability = "Yes" if _is_item_available(item.get("availability")) else "No"
+        response_lines.append(
+            f"- {item.get('name')} - {format_currency(item.get('price'))} | Available: {availability}"
+        )
+    return "\n".join(response_lines)
+
+
+def get_all_fees(cursor):
+    cursor.execute(
+        """
+        SELECT course_name, fees
+        FROM courses
+        ORDER BY course_name ASC
+        """
+    )
+    courses = cursor.fetchall()
+    if not courses:
+        return "No fee records found."
+
+    response_lines = ["Fee Structure:"]
+    for course in courses:
+        response_lines.append(
+            f"- {course.get('course_name')} - {format_inr(course.get('fees'))} per year"
+        )
+    return "\n".join(response_lines)
+
+
+def handle_fees_query(user_input, cursor):
+    department = extract_department(user_input, cursor)
+    if not department:
+        return get_all_fees(cursor)
+
+    cursor.execute(
+        """
+        SELECT course_name, fees
+        FROM courses
+        WHERE LOWER(course_name) = %s
+        LIMIT 1
+        """,
+        (department.lower(),)
+    )
+    row = cursor.fetchone()
+    if row:
+        return f"The fee for {row['course_name']} is {format_inr(row['fees'])} per year."
+    return f"I could not find fee details for {format_department_name(department)}."
+
+def get_course_seats(course_name, cursor):
+    """Get available seats for a specific course."""
+    cursor.execute(
+        """
+        SELECT course_name, total_seats
+        FROM courses
+        WHERE LOWER(course_name) = %s
+        LIMIT 1
+        """,
+        (course_name.lower(),)
+    )
+    row = cursor.fetchone()
+    if row:
+        # Get enrolled students count
+        cursor.execute(
+            "SELECT COUNT(*) as enrolled FROM students WHERE LOWER(subject) = %s",
+            (course_name.lower(),)
+        )
+        enrolled_result = cursor.fetchone()
+        enrolled = enrolled_result.get("enrolled", 0) if enrolled_result else 0
+        total_seats = row.get("total_seats", 0)
+        available_seats = max(0, total_seats - enrolled)
+        
+        return {
+            "course_name": row["course_name"],
+            "total_seats": total_seats,
+            "enrolled": enrolled,
+            "available_seats": available_seats
+        }
+    return None
+
+def get_all_course_strength(cursor):
+    """Get all courses with their enrollment strength."""
+    cursor.execute("SELECT id, course_name, total_seats FROM courses ORDER BY course_name ASC")
+    courses = cursor.fetchall()
+    
+    if not courses:
+        return "No course records found."
+    
+    response_lines = ["📚 **Course Strength & Availability:**\n"]
+    for course in courses:
+        course_name = course.get("course_name")
+        total_seats = course.get("total_seats", 0)
+        
+        # Get enrolled students count
+        cursor.execute(
+            "SELECT COUNT(*) as enrolled FROM students WHERE LOWER(subject) = %s",
+            (course_name.lower(),)
+        )
+        enrolled_result = cursor.fetchone()
+        enrolled = enrolled_result.get("enrolled", 0) if enrolled_result else 0
+        available_seats = max(0, total_seats - enrolled)
+        
+        response_lines.append(
+            f"• **{course_name}**: {enrolled}/{total_seats} enrolled | "
+            f"🔵 {available_seats} seats available"
+        )
+    
+    return "\n".join(response_lines)
+
+def handle_seats_query(user_input, cursor):
+    """Handle queries about course seats and strength."""
+    lowered_input = user_input.lower()
+    
+    # Check if user is asking for a specific course
+    department = extract_department(user_input, cursor)
+    if department:
+        course_info = get_course_seats(department, cursor)
+        if course_info:
+            return (
+                f"📌 **{course_info['course_name']}**\n"
+                f"• Total Seats: {course_info['total_seats']}\n"
+                f"• Enrolled Students: {course_info['enrolled']}\n"
+                f"• 🟢 Available Seats: {course_info['available_seats']}"
+            )
+        return f"I could not find course details for {format_department_name(department)}."
+    
+    # If no specific course, return all courses' strength
+    return get_all_course_strength(cursor)
 
 def extract_menu_item_matches(user_message, cursor):
     text = _normalize_text(user_message)
@@ -272,28 +852,27 @@ def format_currency(value):
     except (ValueError, TypeError):
         return f"\u20B9{value}"
 
-def handle_menu_query(user_message, intent, cursor):
-    if intent == "category_query":
-        category = extract_menu_category(user_message, cursor)
-        if not category:
-            return "Please specify the category."
+def handle_menu_query(user_message, cursor):
+    lowered = user_message.lower()
 
+    extracted_name = extract_item_name(user_message)
+    item_matches = []
+
+    if extracted_name:
         cursor.execute(
             """
-            SELECT name FROM menu_items
-            WHERE LOWER(category) = LOWER(%s)
+            SELECT id, name, category, price, availability
+            FROM menu_items
+            WHERE LOWER(name) LIKE LOWER(%s)
             ORDER BY name ASC
             """,
-            (category,)
+            (f"%{extracted_name}%",)
         )
-        rows = cursor.fetchall()
-        if not rows:
-            return f"I couldn't find items in the {category} category."
+        item_matches = cursor.fetchall()
 
-        item_names = ", ".join(row["name"] for row in rows)
-        return f"Items in {category}: {item_names}."
+    if not item_matches:
+        item_matches = extract_menu_item_matches(user_message, cursor)
 
-    item_matches = extract_menu_item_matches(user_message, cursor)
     if not item_matches:
         return "Please specify the item name."
 
@@ -301,50 +880,44 @@ def handle_menu_query(user_message, intent, cursor):
         options = " or ".join(item["name"] for item in item_matches[:2])
         return f"Did you mean {options}?"
 
-    item_name = item_matches[0]["name"]
+    item = item_matches[0]
+    item_name = item["name"]
 
-    if intent == "price_query":
-        cursor.execute(
-            "SELECT price FROM menu_items WHERE name LIKE %s LIMIT 1",
-            (f"%{item_name}%",)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return f"I couldn't find the price for {item_name}."
-        return f"The price of {item_name.lower()} is {format_currency(row['price'])}."
+    if any(word in lowered for word in ["price", "cost", "rate"]) or "how much" in lowered:
+        return f"The price of {item_name} is {format_currency(item['price'])}."
 
-    if intent == "availability":
-        cursor.execute(
-            "SELECT availability FROM menu_items WHERE name LIKE %s LIMIT 1",
-            (f"%{item_name}%",)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return f"I couldn't find availability details for {item_name}."
+    if any(word in lowered for word in ["available", "availability"]) or "is there" in lowered:
+        if _is_item_available(item.get("availability")):
+            return f"Yes, {item_name} is available."
+        return f"Sorry, {item_name} is not available."
 
-        availability = str(row.get("availability", "")).strip().lower()
-        if availability in {"yes", "y", "1", "true", "available", "in stock"}:
-            return f"Yes, {item_name.lower()} is available."
-        return f"No, {item_name.lower()} is currently unavailable."
-
-    return None
+    return f"{item_name} costs {format_currency(item['price'])} and availability is {'Yes' if _is_item_available(item.get('availability')) else 'No'}."
 
 def extract_department(user_message, cursor):
-    text = user_message.lower()
+    text = _normalize_text(user_message)
     cursor.execute("SELECT course_name FROM courses")
     courses = cursor.fetchall()
 
+    normalized_courses = []
     for row in courses:
         course_name = (row.get("course_name") or "").strip()
         if not course_name:
             continue
+        normalized_courses.append((course_name, _normalize_text(course_name)))
 
-        course_lower = course_name.lower()
-        if course_lower in text:
+    # Prefer more specific department names first:
+    # "teacher education" should be checked before "education".
+    normalized_courses.sort(key=lambda item: len(item[1]), reverse=True)
+
+    for course_name, course_norm in normalized_courses:
+        if not course_norm:
+            continue
+
+        if re.search(rf"\b{re.escape(course_norm)}\b", text):
             return course_name
 
-        tokens = [token for token in course_lower.replace("&", " ").replace("-", " ").split() if token]
-        if tokens and all(token in text for token in tokens):
+        tokens = [token for token in course_norm.split() if token]
+        if tokens and all(re.search(rf"\b{re.escape(token)}\b", text) for token in tokens):
             return course_name
     return None
 
@@ -358,64 +931,277 @@ def format_inr(value):
         return f"\u20B9{value}"
 
 
-@app.route("/get", methods=["POST"])
-def chatbot_response():
-    user_message = request.form.get("msg", "").strip()
-    lowered_message = user_message.lower()
+@dataclass
+class Holiday:
+    id: int
+    name: str
+    date: date
+    day: str
+    type: str
+    year: int
+
+
+def _row_to_holiday(row):
+    if not row:
+        return None
+    return Holiday(
+        id=row.get("id"),
+        name=row.get("name"),
+        date=row.get("date"),
+        day=row.get("day"),
+        type=row.get("type"),
+        year=row.get("year"),
+    )
+
+
+def _fetch_one_holiday(query, params):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+    return _row_to_holiday(row)
+
+
+def get_today_holiday():
+    today = date.today()
+    return _fetch_one_holiday(
+        """
+        SELECT id, name, date, day, type, year
+        FROM holidays
+        WHERE date = %s
+        LIMIT 1
+        """,
+        (today,),
+    )
+
+
+def get_tomorrow_holiday():
+    tomorrow = date.today() + timedelta(days=1)
+    return _fetch_one_holiday(
+        """
+        SELECT id, name, date, day, type, year
+        FROM holidays
+        WHERE date = %s
+        LIMIT 1
+        """,
+        (tomorrow,),
+    )
+
+
+def get_next_holiday():
+    today = date.today()
+    return _fetch_one_holiday(
+        """
+        SELECT id, name, date, day, type, year
+        FROM holidays
+        WHERE date > %s
+        ORDER BY date ASC
+        LIMIT 1
+        """,
+        (today,),
+    )
+
+
+def get_holiday_by_name(name):
+    if not name:
+        return None
+    return _fetch_one_holiday(
+        """
+        SELECT id, name, date, day, type, year
+        FROM holidays
+        WHERE LOWER(name) LIKE LOWER(%s)
+        ORDER BY date ASC
+        LIMIT 1
+        """,
+        (f"%{name}%",),
+    )
+
+
+def fetch_all_holidays():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT id, name, date, day, type, year
+            FROM holidays
+            ORDER BY date ASC
+            """
+        )
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+    return [_row_to_holiday(row) for row in rows]
+
+
+def _format_holiday_date(holiday_date):
+    if isinstance(holiday_date, date):
+        return holiday_date.strftime("%Y-%m-%d")
+    return str(holiday_date)
+
+
+def format_holiday_response(holiday, day_type):
+    if holiday:
+        return (
+            f"Yes, {day_type} ({_format_holiday_date(holiday.date)}) is "
+            f"{holiday.name}, a {holiday.type} holiday."
+        )
+    return f"No, {day_type} is not a holiday."
+
+
+def get_all_holidays():
+    holidays = fetch_all_holidays()
+    if not holidays:
+        return "No holidays found."
+
+    response_lines = ["Holiday List:"]
+    for holiday in holidays:
+        response_lines.append(
+            f"- {holiday.name} ({_format_holiday_date(holiday.date)}) - {holiday.day}"
+        )
+    return "\n".join(response_lines)
+
+
+def search_holiday(keyword):
+    holiday = get_holiday_by_name(keyword)
+    if not holiday:
+        return None
+    return f"{holiday.name} is on {_format_holiday_date(holiday.date)} ({holiday.day})."
+
+
+def handle_query(user_input):
+    user_input = user_input.strip()
+    if not user_input:
+        return "Please type your question."
+
+    lowered_input = user_input.lower()
+    tokens = set(_tokenize_words(lowered_input))
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     ensure_menu_items_table(cursor)
-    intent = detect_intent(user_message)
-    department = extract_department(user_message, cursor)
 
-    if intent == "greeting":
-        response = "Hello! You can ask me about fees or HOD details department-wise."
-    elif intent in ["get_fee", "get_hod"] and not department:
-        if any(phrase in lowered_message for phrase in ["what is the fee", "fee?", "fees?"]):
-            response = "Could you tell me which department?"
-        else:
-            response = "Please specify the department."
-    elif intent == "get_fee":
-        cursor.execute(
-            """
-            SELECT course_name, fees
-            FROM courses
-            WHERE LOWER(course_name) = %s
-            LIMIT 1
-            """,
-            (department.lower(),)
-        )
-        row = cursor.fetchone()
-        if row:
-            response = f"The fee for {row['course_name']} is {format_inr(row['fees'])} per year."
-        else:
-            response = f"I could not find fee details for {format_department_name(department)}."
-    elif intent == "get_hod":
-        cursor.execute(
-            """
-            SELECT course_name, hod_name
-            FROM courses
-            WHERE LOWER(course_name) = %s
-            LIMIT 1
-            """,
-            (department.lower(),)
-        )
-        row = cursor.fetchone()
-        if row and row.get("hod_name"):
-            response = f"The HOD of {row['course_name']} is {row['hod_name']}."
-        elif row:
-            response = f"HOD details for {row['course_name']} are not available right now."
-        else:
-            response = f"I could not find HOD details for {format_department_name(department)}."
-    elif intent in ["price_query", "availability", "category_query"]:
-        response = handle_menu_query(user_message, intent, cursor)
-    else:
-        response = "Sorry, I didn't understand. You can ask about fees, HOD, canteen prices, availability, or categories."
+    try:
+        navigation_response = handle_navigation_query(lowered_input, cursor)
+        if navigation_response:
+            return navigation_response
 
-    cursor.close()
-    conn.close()
+        college_info_response = handle_college_info_query(lowered_input, cursor)
+        if college_info_response:
+            return college_info_response
 
+        if is_single_word(lowered_input):
+            if lowered_input == "menu":
+                return get_full_menu(cursor)
+            if lowered_input == "holidays":
+                return get_all_holidays()
+            if lowered_input == "fees":
+                return get_all_fees(cursor)
+            if lowered_input == "seats" or lowered_input == "strength":
+                return get_all_course_strength(cursor)
+
+            menu_result = search_menu_items(lowered_input, cursor)
+            if menu_result:
+                return menu_result
+
+            holiday_result = search_holiday(lowered_input)
+            if holiday_result:
+                return holiday_result
+
+        if (
+            any(word in tokens for word in {"price", "cost", "rate", "available", "availability"})
+            or "how much" in lowered_input
+            or "is there" in lowered_input
+        ):
+            menu_response = handle_menu_query(lowered_input, cursor)
+            if menu_response:
+                return menu_response
+
+        if "today" in tokens and "holiday" in tokens:
+            holiday = get_today_holiday()
+            return format_holiday_response(holiday, "today")
+
+        if "tomorrow" in tokens and "holiday" in tokens:
+            holiday = get_tomorrow_holiday()
+            return format_holiday_response(holiday, "tomorrow")
+
+        if "next holiday" in lowered_input:
+            holiday = get_next_holiday()
+            if holiday:
+                return (
+                    f"The next holiday is {holiday.name} on "
+                    f"{_format_holiday_date(holiday.date)} ({holiday.day})."
+                )
+            return "No upcoming holidays found."
+
+        if "when is" in lowered_input:
+            keyword = lowered_input.split("when is", 1)[1].strip(" ?.!")
+            if not keyword:
+                return "Please tell me the holiday name."
+            holiday_result = search_holiday(keyword)
+            if holiday_result:
+                return holiday_result
+            return f"No holiday found for {keyword}."
+
+        if "holiday" in tokens or "holidays" in tokens:
+            return get_all_holidays()
+
+        if "fee" in tokens or "fees" in tokens or "tuition" in tokens:
+            return handle_fees_query(lowered_input, cursor)
+
+        if "seat" in tokens or "seats" in tokens or "strength" in tokens or "enrollment" in tokens:
+            return handle_seats_query(lowered_input, cursor)
+
+        if is_notice_query(user_input):
+            notice = get_latest_notice()
+            return format_notice_response(notice)
+
+        if "hod" in tokens or "head of department" in lowered_input:
+            department = extract_department(lowered_input, cursor)
+            if not department:
+                return "Please specify the department."
+
+            cursor.execute(
+                """
+                SELECT course_name, hod_name
+                FROM courses
+                WHERE LOWER(course_name) = %s
+                LIMIT 1
+                """,
+                (department.lower(),)
+            )
+            row = cursor.fetchone()
+            if row and row.get("hod_name"):
+                return f"The HOD of {row['course_name']} is {row['hod_name']}."
+            if row:
+                return f"HOD details for {row['course_name']} are not available right now."
+            return f"I could not find HOD details for {format_department_name(department)}."
+
+        if any(word in tokens for word in {"hello", "hi", "hey"}):
+            return "Hello! Ask me about menu, holidays, or fees."
+
+        faq_answer = search_faqs(user_input)
+        if faq_answer:
+            return faq_answer
+
+        return "Sorry, I didn't understand your request."
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route("/get", methods=["POST"])
+def chatbot_response():
+    user_message = request.form.get("msg", "").strip()
+    if not user_message and request.is_json:
+        user_message = (request.get_json(silent=True) or {}).get("msg", "").strip()
+    response = handle_query(user_message)
     return jsonify({"response": response})
 
 @app.route("/login", methods=["GET", "POST"])
@@ -433,11 +1219,6 @@ def login():
         cursor.close()
         conn.close()
 
-        # DEBUG
-        print("Entered:", password)
-        print("DB:", user["password"] if user else "No user")
-
-        # CORRECT CHECK
         if user and check_password_hash(user["password"], password):
             session["student_id"] = user["id"]
 
@@ -452,7 +1233,11 @@ def login():
             session["student_id"] = user["id"]
 
 
-            send_otp_email(email, otp)
+            sent, error_message = send_otp_email(email, otp)
+            if not sent:
+                session.pop("otp", None)
+                session.pop("otp_time", None)
+                return f"OTP could not be sent. {error_message}"
 
             return redirect("/verify")
 
@@ -550,11 +1335,22 @@ def resend_otp():
     session["otp"] = otp
     session["otp_time"] = time.time()
 
-    send_otp_email(email, otp)
+    sent, error_message = send_otp_email(email, otp)
+    if not sent:
+        session.pop("otp", None)
+        session.pop("otp_time", None)
+        return f"OTP could not be resent. {error_message}"
 
     return "OTP resent successfully!"
-@app.route("/chat")
+@app.route("/chat", methods=["GET", "POST"])
 def chat():
+    if request.method == "POST":
+        user_message = request.form.get("msg", "").strip()
+        if not user_message and request.is_json:
+            user_message = (request.get_json(silent=True) or {}).get("msg", "").strip()
+        response = handle_query(user_message)
+        return jsonify({"response": response})
+
     if "user" not in session:
         return redirect("/login")
     return render_template("index.html")
@@ -602,9 +1398,9 @@ def gallery_page():
     images = Gallery.query.order_by(Gallery.event_date.desc()).all()
     return render_template('gallery.html', images=images)
 
-UPLOAD_FOLDER = 'static/uploads'
+UPLOAD_FOLDER = os.path.join(app.static_folder, "uploads")
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-NOTICE_UPLOAD_FOLDER = 'static/notices'
+NOTICE_UPLOAD_FOLDER = os.path.join(app.static_folder, "notices")
 app.config['NOTICE_UPLOAD_FOLDER'] = NOTICE_UPLOAD_FOLDER
 
 
@@ -812,4 +1608,4 @@ def student_dashboard():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
