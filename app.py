@@ -3,6 +3,7 @@ import json
 import random
 import difflib
 import re
+from dotenv import load_dotenv
 from dataclasses import dataclass
 from flask import Flask , url_for, render_template, request, jsonify ,redirect, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,10 +19,9 @@ from sqlalchemy import inspect, text
 from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = os.getenv("FLASK_SECRET_KEY")
-if not app.secret_key:
-    raise RuntimeError("FLASK_SECRET_KEY environment variable is required.")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "campus-dev-secret-key")
 
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI", "sqlite:///campus.db")
@@ -63,16 +63,11 @@ with app.app_context():
         db.session.commit()
 # Database Connection
 def get_db_connection():
-    db_host = os.getenv("MYSQLHOST")
-    db_port = int(os.getenv("MYSQLPORT", "3306"))
-    db_user = os.getenv("MYSQLUSER")
-    db_password = os.getenv("MYSQLPASSWORD")
-    db_name = os.getenv("MYSQLDATABASE")
-
-    if not all([db_host, db_user, db_password, db_name]):
-        raise DatabaseConnectionError(
-            "Database configuration is missing. Set MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, and MYSQLDATABASE."
-        )
+    db_host = os.getenv("MYSQL_HOST") or os.getenv("MYSQLHOST", "127.0.0.1")
+    db_port = int(os.getenv("MYSQL_PORT") or os.getenv("MYSQLPORT", "3306"))
+    db_user = os.getenv("MYSQL_USER") or os.getenv("MYSQLUSER", "root")
+    db_password = os.getenv("MYSQL_PASSWORD") or os.getenv("MYSQLPASSWORD", "")
+    db_name = os.getenv("MYSQL_DATABASE") or os.getenv("MYSQLDATABASE", "campus")
 
     try:
         return mysql.connector.connect(
@@ -1215,7 +1210,10 @@ def chatbot_response():
     user_message = request.form.get("msg", "").strip()
     if not user_message and request.is_json:
         user_message = (request.get_json(silent=True) or {}).get("msg", "").strip()
-    response = handle_query(user_message)
+    try:
+        response = handle_query(user_message)
+    except DatabaseConnectionError:
+        response = "Sorry, the database service is temporarily unavailable. Please try again shortly."
     return jsonify({"response": response})
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1362,7 +1360,10 @@ def chat():
         user_message = request.form.get("msg", "").strip()
         if not user_message and request.is_json:
             user_message = (request.get_json(silent=True) or {}).get("msg", "").strip()
-        response = handle_query(user_message)
+        try:
+            response = handle_query(user_message)
+        except DatabaseConnectionError:
+            response = "Sorry, the database service is temporarily unavailable. Please try again shortly."
         return jsonify({"response": response})
 
     if "user" not in session:

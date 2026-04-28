@@ -67,15 +67,31 @@ function send() {
     },
     body: "msg=" + encodeURIComponent(msg)
   })
-  .then(response => response.json())
+  .then(async (response) => {
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch (_) {
+      payload = null;
+    }
+
+    if (!response.ok) {
+      const errorText = payload && payload.response
+        ? payload.response
+        : "Server is temporarily unavailable.";
+      throw new Error(errorText);
+    }
+
+    return payload || { response: "Empty server response." };
+  })
   .then(data => {
     removeTyping();
     addMessage(data.response, "bot");
     sending = false;
   })
-  .catch(() => {
+  .catch((error) => {
     removeTyping();
-    addMessage("Error connecting to server.", "bot");
+    addMessage(error.message || "Error connecting to server.", "bot");
     sending = false;
   });
 }

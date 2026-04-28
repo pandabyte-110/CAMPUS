@@ -18,7 +18,6 @@ It provides student/admin flows and answers queries like notices, FAQs, holidays
 ## Tech Stack
 - Python 3.10
 - Flask
-- Gunicorn
 - MySQL (`mysql-connector-python`)
 - Flask-SQLAlchemy / SQLAlchemy
 
@@ -28,23 +27,21 @@ PROJECT CAMPUS/
 |- app.py
 |- intents.json
 |- requirements.txt
-|- Procfile
-|- runtime.txt
 |- templates/
 |- static/
 ```
 
 ## Environment Variables
-Set these variables locally (in `.env`) and on Render (Environment tab):
+Set these variables locally (in `.env`):
 
 ```env
 FLASK_SECRET_KEY=replace_with_a_long_random_secret
 
-MYSQLHOST=replace_with_mysql_host
+MYSQLHOST=127.0.0.1
 MYSQLPORT=3306
-MYSQLUSER=replace_with_mysql_user
-MYSQLPASSWORD=replace_with_mysql_password
-MYSQLDATABASE=replace_with_mysql_database
+MYSQLUSER=root
+MYSQLPASSWORD=
+MYSQLDATABASE=campus
 
 SMTP_EMAIL=replace_with_gmail_address
 SMTP_APP_PASSWORD=replace_with_gmail_app_password
@@ -55,7 +52,6 @@ SQLALCHEMY_DATABASE_URI=sqlite:///campus.db
 ```
 
 Notes:
-- For Railway MySQL, use the exact variable names above (`MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, `MYSQLDATABASE`).
 - `SMTP_APP_PASSWORD` must be a Gmail App Password, not your regular Gmail password.
 
 ## Local Setup
@@ -84,16 +80,6 @@ python app.py
 
 Default local URL: `http://127.0.0.1:5000`
 
-## Deployment on Render
-1. Push project to GitHub.
-2. Create a new **Web Service** in Render from your repo.
-3. Ensure these files exist:
-- `Procfile` -> `web: gunicorn app:app`
-- `requirements.txt`
-- `runtime.txt` -> `python-3.10.0`
-4. In Render -> **Environment**, add all variables from the Environment Variables section above.
-5. Deploy.
-
 ## API Endpoint
 - `POST /get`
   - form/json key: `msg`
@@ -106,16 +92,15 @@ Example (JSON):
 }
 ```
 
-## Production Notes
+## Notes
 - Do not hardcode credentials in code.
 - Keep `.env` out of Git.
-- Use Render environment variables for production secrets.
 
 ## Troubleshooting
 - `Can't connect to MySQL server`:
-  - Verify Railway MySQL service is running
-  - Re-check Render env variable names and values
-  - Confirm DB/network access from Render
+  - Verify your MySQL service is running
+  - Re-check local env variable names and values
+  - Confirm DB host/user/password/database are correct
 - OTP mail not sending:
   - Verify `SMTP_EMAIL` and `SMTP_APP_PASSWORD`
   - Confirm Gmail App Password is active
