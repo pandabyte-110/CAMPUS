@@ -52,7 +52,7 @@ CAMPUS is a comprehensive Flask-based web application that combines a **campus i
 | Component | Technology |
 |-----------|-----------|
 | **Backend Framework** | Flask 3.0.3 |
-| **Database** | MySQL / SQLite |
+| **Database** | MySQL |
 | **ORM** | SQLAlchemy 2.0.36, Flask-SQLAlchemy 3.1.1 |
 | **Password Security** | Werkzeug (password hashing) |
 | **Environment Config** | python-dotenv |
@@ -205,6 +205,202 @@ Bot: "📌 **Notice Title**
      Notice message content...
      📂 Category: Academic"
 ```
+
+---
+
+## ❓ Complete List of Questions Users Can Ask
+
+### 🎓 Course & Fee Queries
+```
+• What are the fees for [Course Name]?
+• What is the fee structure?
+• How much does [Course] cost?
+• Fee for Computer Science?
+• Tell me about fees
+• Show all fees
+• What is the cost of BCA?
+• Course fees list
+• Fees for Engineering
+• Annual fees for [Department]?
+```
+
+### 💺 Course Seats & Enrollment Queries
+```
+• How many seats are available in [Course]?
+• What is the enrollment strength?
+• How many students are in [Course]?
+• Available seats in BCA?
+• Course strength
+• Seats available
+• Show me course strength
+• Enrollment status for [Course]
+• How many total seats in [Department]?
+• Is there space in [Course]?
+• Are seats available?
+• Seats (shows all courses)
+• Strength (shows all courses)
+```
+
+### 📅 Holiday & Calendar Queries
+```
+• Is today a holiday?
+• Is tomorrow a holiday?
+• When is the next holiday?
+• When is [Holiday Name]?
+• Is [Date] a holiday?
+• Show all holidays
+• List holidays
+• Holiday dates
+• When is Diwali?
+• Are there any holidays coming up?
+• Tell me about holidays
+• What holidays are scheduled?
+• Tomorrow holiday?
+```
+
+### 🗺️ Campus Navigation & Directions
+```
+• Where is the [Location]?
+• How do I reach [Place]?
+• Directions to Library
+• How can I get to the Principal's office?
+• I am at [Location], how to reach [Destination]?
+• From [Start] to [End]
+• Route to Cafeteria
+• How to go to Computer Lab?
+• Where is the Exam Section?
+• Directions from Library to Hostel
+• How do I reach the Principal office?
+• Where is Boys Hostel?
+• Can you guide me to [Place]?
+```
+
+### 📢 Notice & Announcement Queries
+```
+• What is the latest notice?
+• Show me recent notices
+• New announcements?
+• Latest notice?
+• Tell me about notices
+• Are there any notices?
+• What's new?
+• Recent announcements
+• Campus notices
+```
+
+### 🍴 Canteen & Menu Queries
+```
+• What's available in the canteen?
+• Show me the menu
+• Menu
+• What food items are available?
+• Is [Item] available?
+• Price of [Food Item]?
+• How much is pizza?
+• Is samosa available?
+• What are the prices?
+• Do you have [Item]?
+• Is [Item] in stock?
+• Show canteen menu
+• What does canteen have?
+• Breakfast items?
+• Beverages available?
+```
+
+### 📚 FAQ & Knowledge Base Queries
+```
+• How do I register?
+• What is the admission process?
+• When does admission open?
+• Can you help me with [Topic]?
+• Tell me about [General Question]
+• What should I know about [Subject]?
+• How does [Process] work?
+• [Any general college-related question]
+```
+
+### 🏫 College Information Queries
+```
+• Who is the principal?
+• What is the college mission?
+• Tell me about the college vision
+• When was the college established?
+• What is the college motto?
+• College address?
+• College history?
+• College anthem?
+• What is the full address?
+• Where is the college located?
+• Tell me about the college
+• Established year?
+• College information?
+```
+
+### 🧑‍💼 Faculty & Administration Queries
+```
+• Who is the HOD of [Course]?
+• Head of Department for [Course]?
+• Who teaches [Subject]?
+• HOD of Computer Science?
+• Department head for BCA?
+```
+
+### 💬 General & Greeting Queries
+```
+• Hi
+• Hello
+• Hey
+• Good morning
+• Good evening
+• How are you?
+• What can you do?
+• Help
+• Can you help me?
+• What services are available?
+• Tell me what you can do
+```
+
+### 🎯 Complex/Multi-part Queries
+```
+• What are the fees and seat availability for BCA?
+• Tell me about [Course] - fees, seats, and HOD
+• Can you find directions and tell me about [Place]?
+• Which courses have available seats?
+• Show courses with fees under [Amount]
+• What holidays are coming in [Month]?
+• Is there a notice about [Topic]?
+```
+
+---
+
+## 📊 Query Statistics
+
+| Category | Number of Queries | Complexity |
+|----------|-------------------|-----------|
+| Course & Fees | 10 | Low |
+| Seats & Enrollment | 12 | Medium |
+| Holidays | 13 | Low-Medium |
+| Navigation | 12 | Medium-High |
+| Notices | 9 | Low |
+| Canteen Menu | 13 | Medium |
+| FAQ/Knowledge | 6 | High |
+| College Info | 9 | Low-Medium |
+| Faculty | 5 | Low |
+| Greetings | 11 | Low |
+| **Total** | **100+** | **Varies** |
+
+---
+
+## 🔍 Query Variants
+
+Most queries have multiple acceptable variations. The chatbot uses **fuzzy matching** and **pattern recognition** to understand variations like:
+
+- "fees for BCA" = "What's the fee?" = "How much does BCA cost?"
+- "Where is Library?" = "How do I reach Library?" = "Directions to Library"
+- "Is today holiday?" = "Today holiday?" = "Is today a holiday?"
+- "Show menu" = "Menu" = "What's available?"
+
+This makes the chatbot flexible and user-friendly, accepting both formal and casual question formats.
 
 ---
 

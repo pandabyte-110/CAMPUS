@@ -904,6 +904,7 @@ def handle_menu_query(user_message, cursor):
 
 def extract_department(user_message, cursor):
     text = _normalize_text(user_message)
+    user_tokens = [token for token in text.split() if token]
     cursor.execute("SELECT course_name FROM courses")
     courses = cursor.fetchall()
 
@@ -928,7 +929,162 @@ def extract_department(user_message, cursor):
         tokens = [token for token in course_norm.split() if token]
         if tokens and all(re.search(rf"\b{re.escape(token)}\b", text) for token in tokens):
             return course_name
+
+        # Flexible match: allow partial department phrases from the user.
+        # Example: user says "computer science", course is "bsc computer science".
+        if user_tokens and tokens:
+            token_set = set(tokens)
+            overlap = [tok for tok in user_tokens if tok in token_set]
+            if len(overlap) >= 2:
+                return course_name
+
+            # Common abbreviation support
+            if "maths" in user_tokens and "mathematics" in token_set:
+                return course_name
+            if "cs" in user_tokens and {"computer", "science"}.issubset(token_set):
+                return course_name
+            if "it" in user_tokens and "information" in token_set and "technology" in token_set:
+                return course_name
     return None
+
+def _resolve_staff_schema(cursor):
+    cursor.execute("SHOW COLUMNS FROM staff")
+    columns = [row.get("Field", "").strip() for row in cursor.fetchall()]
+    normalized = {col.lower(): col for col in columns}
+
+    name_col = None
+    for candidate in ["staff_name", "teacher_name", "faculty_name", "name", "full_name"]:
+        if candidate in normalized:
+            name_col = normalized[candidate]
+            break
+
+    course_fk_col = None
+    for candidate in ["course_id", "courseid", "course"]:
+        if candidate in normalized:
+            course_fk_col = normalized[candidate]
+            break
+
+    return name_col, course_fk_col
+
+def _fetch_staff_name_matches(user_message, cursor, staff_name_col):
+    text = _normalize_text(user_message)
+    cursor.execute(f"SELECT {staff_name_col} AS staff_name FROM staff")
+    staff_rows = cursor.fetchall()
+
+    normalized_staff = []
+    for row in staff_rows:
+        staff_name = (row.get("staff_name") or "").strip()
+        if not staff_name:
+            continue
+        normalized_staff.append((staff_name, _normalize_text(staff_name)))
+
+    normalized_staff.sort(key=lambda item: len(item[1]), reverse=True)
+
+    matches = []
+    for staff_name, staff_norm in normalized_staff:
+        if not staff_norm:
+            continue
+        if re.search(rf"\b{re.escape(staff_norm)}\b", text):
+            matches.append(staff_name)
+            continue
+        tokens = [token for token in staff_norm.split() if token]
+        if tokens and all(re.search(rf"\b{re.escape(token)}\b", text) for token in tokens):
+            matches.append(staff_name)
+    return matches
+
+def _infer_department_from_text(user_message, cursor):
+    text = _normalize_text(user_message)
+    user_tokens = [token for token in text.split() if len(token) > 2]
+    stopwords = {
+        "staff", "staffs", "teacher", "teachers", "faculty", "lecturer", "lecturers",
+        "professor", "professors", "which", "what", "where", "does", "work", "works",
+        "department", "of", "in", "is", "the", "for", "show", "list", "tell", "me",
+    }
+    query_tokens = [t for t in user_tokens if t not in stopwords]
+    if not query_tokens:
+        return None
+
+    cursor.execute("SELECT course_name FROM courses")
+    rows = cursor.fetchall()
+    best_course = None
+    best_score = 0
+    for row in rows:
+        course_name = (row.get("course_name") or "").strip()
+        if not course_name:
+            continue
+        course_tokens = set(_normalize_text(course_name).split())
+        score = sum(1 for token in query_tokens if token in course_tokens)
+        if score > best_score:
+            best_score = score
+            best_course = course_name
+
+    return best_course if best_score >= 1 else None
+
+def handle_staff_list_query(user_input, cursor):
+    department = extract_department(user_input, cursor)
+    if not department:
+        department = _infer_department_from_text(user_input, cursor)
+    if not department:
+        return "Please specify the department name to get staff details."
+
+    staff_name_col, course_fk_col = _resolve_staff_schema(cursor)
+    if not staff_name_col or not course_fk_col:
+        return "Staff details are not configured correctly in the database."
+
+    cursor.execute(
+        f"""
+        SELECT s.{staff_name_col} AS staff_name, s.role AS staff_role, c.course_name
+        FROM staff s
+        JOIN courses c ON c.id = s.{course_fk_col}
+        WHERE LOWER(c.course_name) = %s
+        ORDER BY s.{staff_name_col} ASC
+        """,
+        (department.lower(),)
+    )
+    rows = cursor.fetchall()
+    if not rows:
+        return f"I could not find staff details for {format_department_name(department)}."
+
+    lines = [f"Staff of {rows[0]['course_name']}:"]
+    for row in rows:
+        if row.get("staff_name"):
+            role = (row.get("staff_role") or "").strip()
+            if role:
+                lines.append(f"- {row['staff_name']} - {role}")
+            else:
+                lines.append(f"- {row['staff_name']}")
+    if len(lines) == 1:
+        return f"Staff names for {rows[0]['course_name']} are not available right now."
+    return "\n".join(lines)
+
+def handle_teacher_department_query(user_input, cursor):
+    staff_name_col, course_fk_col = _resolve_staff_schema(cursor)
+    if not staff_name_col or not course_fk_col:
+        return "Staff details are not configured correctly in the database."
+
+    matches = _fetch_staff_name_matches(user_input, cursor, staff_name_col)
+    if not matches:
+        return "Please provide the teacher name."
+
+    if len(matches) > 1:
+        sample = ", ".join(matches[:3])
+        return f"I found multiple staff names. Please be specific: {sample}."
+
+    staff_name = matches[0]
+    cursor.execute(
+        f"""
+        SELECT s.{staff_name_col} AS staff_name, c.course_name
+        FROM staff s
+        JOIN courses c ON c.id = s.{course_fk_col}
+        WHERE LOWER(s.{staff_name_col}) = %s
+        LIMIT 1
+        """,
+        (staff_name.lower(),)
+    )
+    row = cursor.fetchone()
+    if row and row.get("course_name"):
+        return f"{row['staff_name']} works in the {row['course_name']} department."
+    return f"I could not find department details for {staff_name}."
 
 def format_department_name(department):
     return " ".join(word.capitalize() for word in department.split())
@@ -1166,6 +1322,27 @@ def handle_query(user_input):
 
         if "seat" in tokens or "seats" in tokens or "strength" in tokens or "enrollment" in tokens:
             return handle_seats_query(lowered_input, cursor)
+
+        staff_keywords = {"staff", "staffs", "teacher", "teachers", "faculty", "lecturer", "lecturers", "professor", "professors"}
+        teacher_department_phrases = [
+            "which department",
+            "what department",
+            "department does",
+            "where does",
+            "works in",
+            "work in",
+            "belongs to",
+        ]
+
+        if any(phrase in lowered_input for phrase in teacher_department_phrases):
+            staff_department_response = handle_teacher_department_query(user_input, cursor)
+            if staff_department_response:
+                return staff_department_response
+
+        if any(word in tokens for word in staff_keywords):
+            staff_list_response = handle_staff_list_query(user_input, cursor)
+            if staff_list_response:
+                return staff_list_response
 
         if is_notice_query(user_input):
             notice = get_latest_notice()
